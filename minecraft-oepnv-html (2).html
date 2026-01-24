@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minecraft ÖPNV Navigator</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Press Start 2P', 'Courier New', monospace;
+            background: linear-gradient(135deg, #1a4d2e 0%, #2d5f3d 50%, #1f6f4a 100%);
+            min-height: 100vh;
+            padding: 20px;
+            image-rendering: pixelated;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #3d2817 0%, #2c1810 100%);
+            border: 6px solid #1a0f08;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 12px 24px rgba(0,0,0,0.7), inset 0 2px 4px rgba(255,255,255,0.1);
+            text-align: center;
+            position: relative;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #8b6914 0%, #ffd700 50%, #8b6914 100%);
+        }
+
+        .header h1 {
+            color: #ffd700;
+            font-size: 1.8em;
+            margin-bottom: 15px;
+            text-shadow: 4px 4px 0px #000, 2px 2px 0px rgba(0,0,0,0.5);
+            letter-spacing: 2px;
+        }
+
+        .train-icon {
+            display: inline-block;
+            animation: trainBounce 2s infinite;
+        }
+
+        @keyframes trainBounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .header p {
+            color: #d4af37;
+            font-size: 0.7em;
+            text-shadow: 2px 2px 0px #000;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        @media (max-width: 968px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .input-box {
+            background: linear-gradient(135deg, #5a504a 0%, #453d37 100%);
+            border: 6px solid #1a1410;
+            padding: 25px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.5), inset 0 -2px 4px rgba(0,0,0,0.3);
+        }
+
+        .network-map {
+            background: #f5f5f5;
+            border: 6px solid #1a1410;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+            overflow: hidden;
+            height: 600px;
+            position: relative;
+            cursor: grab;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .network-map:active {
+            cursor: grabbing;
+        }
+
+        .network-map-container {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .network-map img {
+            display: block;
+            max-width: 100%;
+            max-height: 100%;
+            width: auto;
+            height: auto;
+            image-rendering: crisp-edges;
+            transform-origin: center center;
+            transition: transform 0.1s ease-out;
+        }
+
+        .zoom-controls {
+            position: absolute;
+            bottom: 15px;
+            right: 15px;
+            z-index: 100;
+            display: flex;
+            gap: 10px;
+        }
+
+        .zoom-btn {
+            background: linear-gradient(180deg, #d4a94a 0%, #b8892f 100%);
+            color: #1a0f08;
+            border: 3px solid #8b6914;
+            width: 40px;
+            height: 40px;
+            font-size: 1.2em;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 3px 0 #6b5010, 0 5px 10px rgba(0,0,0,0.4);
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .zoom-btn:hover {
+            background: linear-gradient(180deg, #e4b95a 0%, #c8993f 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 0 #6b5010, 0 7px 12px rgba(0,0,0,0.5);
+        }
+
+        .zoom-btn:active {
+            transform: translateY(1px);
+            box-shadow: 0 1px 0 #6b5010, 0 3px 6px rgba(0,0,0,0.4);
+        }
+
+        .zoom-info {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: rgba(0,0,0,0.7);
+            color: #ffd700;
+            padding: 8px 12px;
+            font-size: 0.5em;
+            border: 2px solid #ffd700;
+            z-index: 100;
+        }
+
+        label {
+            display: block;
+            color: #ffd700;
+            font-weight: bold;
+            font-size: 0.65em;
+            margin-bottom: 12px;
+            text-shadow: 2px 2px 0px #000;
+            letter-spacing: 1px;
+        }
+
+        select {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(180deg, #3a3530 0%, #2a2520 100%);
+            color: #fff;
+            border: 4px solid #1a1410;
+            border-radius: 0;
+            font-size: 0.65em;
+            font-family: 'Press Start 2P', monospace;
+            cursor: pointer;
+            margin-bottom: 20px;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+            transition: all 0.2s;
+        }
+
+        select option {
+            background: #2a2520;
+            color: #fff;
+            padding: 10px;
+        }
+
+        select:hover {
+            border-color: #ffd700;
+            background: linear-gradient(180deg, #4a4540 0%, #3a3530 100%);
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #ffd700;
+            box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.3), inset 0 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .swap-btn {
+            background: linear-gradient(180deg, #d4a94a 0%, #b8892f 100%);
+            color: #1a0f08;
+            border: 4px solid #8b6914;
+            padding: 14px 24px;
+            font-size: 0.6em;
+            font-family: 'Press Start 2P', monospace;
+            cursor: pointer;
+            display: block;
+            margin: 0 auto 20px;
+            transition: all 0.2s;
+            box-shadow: 0 4px 0 #6b5010, 0 6px 12px rgba(0,0,0,0.4);
+            position: relative;
+            top: 0;
+        }
+
+        .swap-btn:hover {
+            background: linear-gradient(180deg, #e4b95a 0%, #c8993f 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 0 #6b5010, 0 8px 16px rgba(0,0,0,0.5);
+        }
+
+        .swap-btn:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #6b5010, 0 4px 8px rgba(0,0,0,0.4);
+        }
+
+        .route-box {
+            background: linear-gradient(135deg, #5a504a 0%, #453d37 100%);
+            border: 6px solid #1a1410;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+        }
+
+        .route-box h2 {
+            color: #ffd700;
+            font-size: 0.9em;
+            margin-bottom: 25px;
+            text-shadow: 3px 3px 0px #000;
+            letter-spacing: 1px;
+        }
+
+        .segment {
+            background: linear-gradient(135deg, #3a3530 0%, #2a2520 100%);
+            border: 4px solid #1a1410;
+            padding: 20px;
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+
+
+        .line-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+            position: relative;
+            z-index: 5;
+        }
+
+        .line-color {
+            width: 20px;
+            height: 20px;
+            border: 3px solid #000;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.5), inset 0 1px 2px rgba(255,255,255,0.2);
+            flex-shrink: 0;
+        }
+
+        .line-info {
+            flex: 1;
+        }
+
+        .line-name {
+            font-weight: bold;
+            color: #fff;
+            font-size: 0.7em;
+            text-shadow: 2px 2px 0px #000;
+            margin-bottom: 5px;
+        }
+
+        .line-direction {
+            color: #d4af37;
+            font-size: 0.5em;
+            text-shadow: 1px 1px 0px #000;
+        }
+
+        .stations {
+            margin-left: 32px;
+        }
+
+        .station {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+            color: #e5e7eb;
+            font-size: 0.55em;
+            line-height: 1.6;
+        }
+
+        .station-important {
+            font-weight: bold;
+            color: #ffd700;
+            text-shadow: 2px 2px 0px #000;
+        }
+
+        .station-skip {
+            color: #9ca3af;
+            font-size: 0.5em;
+        }
+
+        .station-dot {
+            width: 10px;
+            height: 10px;
+            background: #fff;
+            border: 2px solid #000;
+            flex-shrink: 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .station-dot-skip {
+            width: 8px;
+            height: 8px;
+            background: #6b7280;
+            border: 2px solid #000;
+            flex-shrink: 0;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+
+        .route-summary {
+            background: linear-gradient(135deg, #1e5631 0%, #155724 100%);
+            border: 4px solid #0d3d1f;
+            padding: 18px;
+            text-align: center;
+            color: #d4edda;
+            font-size: 0.6em;
+            margin-top: 25px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.4), inset 0 1px 2px rgba(255,255,255,0.1);
+            text-shadow: 1px 1px 0px #000;
+        }
+
+        .error-box {
+            background: linear-gradient(135deg, #991b1b 0%, #7f1d1d 100%);
+            border: 6px solid #450a0a;
+            padding: 30px;
+            text-align: center;
+            color: #fecaca;
+            font-size: 0.7em;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+            text-shadow: 2px 2px 0px #000;
+        }
+
+        .lines-overview {
+            background: linear-gradient(135deg, #5a504a 0%, #453d37 100%);
+            border: 6px solid #1a1410;
+            padding: 25px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+        }
+
+        .lines-overview h2 {
+            color: #ffd700;
+            font-size: 0.9em;
+            margin-bottom: 25px;
+            text-shadow: 3px 3px 0px #000;
+            letter-spacing: 1px;
+        }
+
+        .line-item {
+            background: linear-gradient(135deg, #3a3530 0%, #2a2520 100%);
+            border: 4px solid #1a1410;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+            transition: all 0.2s;
+        }
+
+        .line-item:hover {
+            transform: translateX(5px);
+            box-shadow: -5px 5px 0 #1a1410, inset 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .line-item-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .line-item-name {
+            font-size: 0.6em;
+            color: #fff;
+            text-shadow: 2px 2px 0px #000;
+        }
+
+        .line-item-stations {
+            color: #d1d5db;
+            font-size: 0.45em;
+            margin-left: 30px;
+            line-height: 1.8;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .pixelated {
+            image-rendering: pixelated;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1><span class="train-icon">🚂</span> MINECRAFT ÖPNV</h1>
+            <p>Dein Zug-Navigator</p>
+        </div>
+
+        <div class="main-grid">
+            <div class="input-box">
+                <label>🚩 STARTSTATION</label>
+                <select id="start">
+                    <option value="">-- Wähle Start --</option>
+                </select>
+
+                <button class="swap-btn" onclick="swapStations()">↕ TAUSCHEN</button>
+
+                <label>🎯 ZIELSTATION</label>
+                <select id="ziel">
+                    <option value="">-- Wähle Ziel --</option>
+                </select>
+            </div>
+
+            <div class="network-map" id="mapContainer">
+                <div class="network-map-container" id="mapContent">
+                    <img src="https://raw.githubusercontent.com/pollmaha84/WJ-Navigator/main/images/Serverbahn-Transport(1).png" alt="Netzplan" id="networkMap" class="pixelated" crossorigin="anonymous" onerror="showMapError()">
+                </div>
+                <div class="zoom-info" id="zoomInfo">Zoom: 100%</div>
+                <div class="zoom-controls">
+                    <button class="zoom-btn" onclick="zoomIn()">+</button>
+                    <button class="zoom-btn" onclick="zoomOut()">−</button>
+                    <button class="zoom-btn" onclick="resetZoom()">⟲</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="routeContainer" class="hidden"></div>
+        <div id="errorContainer" class="hidden"></div>
+
+        <div class="lines-overview">
+            <h2>📋 ALLE LINIEN</h2>
+            <div id="linesOverview"></div>
+        </div>
+    </div>
+
+    <script>
+        const lines = [
+            {
+                name: 'Ostia-Linie',
+                color: '#DC2626',
+                colorName: 'Rot',
+                stations: ['Nordbasis', 'Spawn', 'Steinfels', 'Sumpfbahnhof', 'Eichenfels', 'Ostbrück', 'Königsberg', 'Ostia']
+            },
+            {
+                name: 'Frostlinie',
+                color: '#06B6D4',
+                colorName: 'Cyan',
+                stations: ['Nordbasis', 'Spawn', 'Steinfels', 'Olymp', 'Froststation', 'Landania']
+            },
+            {
+                name: 'Hafenlinie',
+                color: '#A855F7',
+                colorName: 'Lila',
+                stations: ['Handelshafen', 'Außenposten / Goldhain', 'Eichenfels', 'Sumpfbahnhof']
+            },
+            {
+                name: 'Zentrallinie',
+                color: '#84CC16',
+                colorName: 'Hellgrün',
+                stations: ['Froststation', 'UN-Hauptquartier', 'Handelshafen']
+            },
+            {
+                name: 'Ringlinie',
+                color: '#16A34A',
+                colorName: 'Dunkelgrün',
+                stations: ['Capua', 'Bauministerium', 'Höllenpforte / Stronghold', 'Rom', 'Ostbrück', 'Eichenfels', 'Außenposten / Goldhain', 'Handelshafen', 'UN-Hauptquartier', 'Landania']
+            },
+            {
+                name: 'Burglinie',
+                color: '#1E40AF',
+                colorName: 'Dunkelblau',
+                stations: ['Rom', 'Burg', 'Bauministerium']
+            },
+            {
+                name: 'Bezirkslinie',
+                color: '#EAB308',
+                colorName: 'Gelb',
+                stations: ['Rom', 'Ostia', 'Königsberg', 'Yanniks Kleinstadt']
+            }
+        ];
+
+        // Zoom-Funktionalität für Netzplan
+        let scale = 1;
+        let panning = false;
+        let pointX = 0;
+        let pointY = 0;
+        let start = { x: 0, y: 0 };
+
+        const mapContainer = document.getElementById('mapContainer');
+        const mapImg = document.getElementById('networkMap');
+        const zoomInfo = document.getElementById('zoomInfo');
+
+        function setTransform() {
+            mapImg.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
+            zoomInfo.textContent = `Zoom: ${Math.round(scale * 100)}%`;
+        }
+
+        // Bild zentriert laden
+        mapImg.onload = function() {
+            resetZoom();
+        };
+
+        function showMapError() {
+            const mapContent = document.getElementById('mapContent');
+            mapContent.innerHTML = `
+                <div style="padding: 40px; text-align: center; color: #333; font-size: 0.6em; line-height: 2;">
+                    <div style="font-size: 3em; margin-bottom: 20px;">🗺️</div>
+                    <div style="font-weight: bold; margin-bottom: 15px;">NETZPLAN NICHT VERFÜGBAR</div>
+                    <div style="margin-bottom: 20px;">Der interaktive Netzplan ist nur verfügbar auf:</div>
+                    <a href="https://pollmaha84.github.io/WJ-Navigator/" 
+                       style="color: #d97706; font-weight: bold; text-decoration: underline;"
+                       target="_blank">
+                       pollmaha84.github.io/WJ-Navigator
+                    </a>
+                    <div style="margin-top: 20px; font-size: 0.9em; color: #666;">
+                       Der Navigator funktioniert hier vollständig,<br>
+                       nur der Netzplan kann in dieser Umgebung<br>
+                       nicht geladen werden.
+                    </div>
+                </div>
+            `;
+        }
+
+        // Prüfe nach 2 Sekunden ob Bild geladen wurde
+        setTimeout(() => {
+            if (!mapImg.complete || mapImg.naturalHeight === 0) {
+                showMapError();
+            }
+        }, 2000);
+
+        function zoomIn() {
+            scale = Math.min(scale * 1.2, 7.5); // Max 750%
+            setTransform();
+        }
+
+        function zoomOut() {
+            scale = Math.max(scale / 1.2, 1); // Min 100%
+            setTransform();
+        }
+
+        function resetZoom() {
+            scale = 1;
+            pointX = 0;
+            pointY = 0;
+            setTransform();
+        }
+
+        mapContainer.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            start = { x: e.clientX - pointX, y: e.clientY - pointY };
+            panning = true;
+        });
+
+        mapContainer.addEventListener('mousemove', (e) => {
+            e.preventDefault();
+            if (!panning) return;
+            pointX = e.clientX - start.x;
+            pointY = e.clientY - start.y;
+            setTransform();
+        });
+
+        mapContainer.addEventListener('mouseup', () => {
+            panning = false;
+        });
+
+        mapContainer.addEventListener('mouseleave', () => {
+            panning = false;
+        });
+
+        mapContainer.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? 0.9 : 1.1;
+            scale = Math.max(1, Math.min(7.5, scale * delta)); // Min 100%, Max 750%
+            setTransform();
+        });
+
+        // Touch-Support für Mobile
+        let initialDistance = 0;
+        mapContainer.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2) {
+                initialDistance = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+            } else if (e.touches.length === 1) {
+                start = { x: e.touches[0].clientX - pointX, y: e.touches[0].clientY - pointY };
+                panning = true;
+            }
+        });
+
+        mapContainer.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (e.touches.length === 2) {
+                const currentDistance = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+                scale = Math.max(1, Math.min(7.5, scale * (currentDistance / initialDistance))); // Min 100%, Max 750%
+                initialDistance = currentDistance;
+                setTransform();
+            } else if (panning && e.touches.length === 1) {
+                pointX = e.touches[0].clientX - start.x;
+                pointY = e.touches[0].clientY - start.y;
+                setTransform();
+            }
+        });
+
+        mapContainer.addEventListener('touchend', () => {
+            panning = false;
+        });
+
+        const allStations = [...new Set(lines.flatMap(line => line.stations))].sort();
+
+        const startSelect = document.getElementById('start');
+        const zielSelect = document.getElementById('ziel');
+
+        allStations.forEach(station => {
+            const option1 = document.createElement('option');
+            option1.value = station;
+            option1.textContent = station;
+            startSelect.appendChild(option1);
+
+            const option2 = document.createElement('option');
+            option2.value = station;
+            option2.textContent = station;
+            zielSelect.appendChild(option2);
+        });
+
+        const linesOverview = document.getElementById('linesOverview');
+        lines.forEach(line => {
+            const lineItem = document.createElement('div');
+            lineItem.className = 'line-item';
+            lineItem.innerHTML = `
+                <div class="line-item-header">
+                    <div class="line-color" style="background-color: ${line.color}"></div>
+                    <span class="line-item-name">${line.name} (${line.colorName})</span>
+                </div>
+                <div class="line-item-stations">${line.stations.join(' → ')}</div>
+            `;
+            linesOverview.appendChild(lineItem);
+        });
+
+        function swapStations() {
+            const temp = startSelect.value;
+            startSelect.value = zielSelect.value;
+            zielSelect.value = temp;
+            calculateRoute();
+        }
+
+        function findRoute(startStation, endStation) {
+            if (!startStation || !endStation || startStation === endStation) {
+                return null;
+            }
+
+            const queue = [[startStation, [], null, 0]];
+            const visited = new Map();
+            const allRoutes = [];
+            let minTransfers = Infinity;
+
+            while (queue.length > 0) {
+                const [current, path, lastLine, transfers] = queue.shift();
+
+                if (transfers > minTransfers) continue;
+
+                const key = `${current}-${lastLine?.name || 'none'}`;
+                const best = visited.get(key);
+                if (best !== undefined && best <= transfers) continue;
+                visited.set(key, transfers);
+
+                for (const line of lines) {
+                    const currentIndex = line.stations.indexOf(current);
+                    if (currentIndex === -1) continue;
+
+                    // NUR zu Nachbarstationen fahren (links oder rechts)
+                    const neighbors = [currentIndex - 1, currentIndex + 1];
+
+                    for (const i of neighbors) {
+                        if (i < 0 || i >= line.stations.length) continue;
+                        
+                        const next = line.stations[i];
+                        const newTransfers = lastLine && lastLine.name !== line.name ? transfers + 1 : transfers;
+                        if (newTransfers > minTransfers) continue;
+
+                        const newPath = [...path, { line, from: current, to: next }];
+
+                        if (next === endStation) {
+                            if (newTransfers < minTransfers) {
+                                minTransfers = newTransfers;
+                                allRoutes.length = 0;
+                            }
+                            if (newTransfers === minTransfers) {
+                                allRoutes.push(optimizePath(newPath));
+                            }
+                        } else {
+                            queue.push([next, newPath, line, newTransfers]);
+                        }
+                    }
+                }
+            }
+
+            if (allRoutes.length === 0) return null;
+            
+            return allRoutes.reduce((best, route) => {
+                const routeStations = route.reduce((sum, seg) => sum + seg.fullStations.length - 1, 0) + 1;
+                const bestStations = best.reduce((sum, seg) => sum + seg.fullStations.length - 1, 0) + 1;
+                return routeStations < bestStations ? route : best;
+            });
+        }
+
+        function optimizePath(path) {
+            if (path.length === 0) return [];
+
+            const optimized = [];
+            let currentSegment = {
+                line: path[0].line,
+                stations: [path[0].from, path[0].to]
+            };
+
+            for (let i = 1; i < path.length; i++) {
+                if (path[i].line.name === currentSegment.line.name) {
+                    if (!currentSegment.stations.includes(path[i].to)) {
+                        currentSegment.stations.push(path[i].to);
+                    }
+                } else {
+                    optimized.push(currentSegment);
+                    currentSegment = {
+                        line: path[i].line,
+                        stations: [path[i].from, path[i].to]
+                    };
+                }
+            }
+            optimized.push(currentSegment);
+
+            return optimized.map(segment => {
+                const fullStations = getFullStationSequence(segment);
+                return { ...segment, fullStations };
+            });
+        }
+
+        function getFullStationSequence(segment) {
+            const startIdx = segment.line.stations.indexOf(segment.stations[0]);
+            const endIdx = segment.line.stations.indexOf(segment.stations[segment.stations.length - 1]);
+            
+            const fullStations = [];
+            if (startIdx < endIdx) {
+                for (let i = startIdx; i <= endIdx; i++) {
+                    fullStations.push(segment.line.stations[i]);
+                }
+            } else {
+                for (let i = startIdx; i >= endIdx; i--) {
+                    fullStations.push(segment.line.stations[i]);
+                }
+            }
+            return fullStations;
+        }
+
+        function getDirection(segment) {
+            const firstStation = segment.fullStations[0];
+            const lastStation = segment.fullStations[segment.fullStations.length - 1];
+            const firstIndex = segment.line.stations.indexOf(firstStation);
+            const lastIndex = segment.line.stations.indexOf(lastStation);
+            
+            if (lastIndex > firstIndex) {
+                return segment.line.stations[segment.line.stations.length - 1];
+            } else {
+                return segment.line.stations[0];
+            }
+        }
+
+        function calculateRoute() {
+            const start = startSelect.value;
+            const ziel = zielSelect.value;
+            const routeContainer = document.getElementById('routeContainer');
+            const errorContainer = document.getElementById('errorContainer');
+
+            routeContainer.classList.add('hidden');
+            errorContainer.classList.add('hidden');
+
+            if (!start || !ziel) return;
+
+            // Start = Ziel Check
+            if (start === ziel) {
+                errorContainer.innerHTML = '<div class="error-box">⚠ START = ZIEL 😅<br><br>Du bist schon da!</div>';
+                errorContainer.classList.remove('hidden');
+                return;
+            }
+
+            const route = findRoute(start, ziel);
+
+            if (!route || route.length === 0) {
+                errorContainer.innerHTML = '<div class="error-box">⚠ KEINE VERBINDUNG GEFUNDEN!</div>';
+                errorContainer.classList.remove('hidden');
+                return;
+            }
+
+            let html = '<div class="route-box"><h2>🚂 DEINE ROUTE</h2>';
+
+            route.forEach((segment, idx) => {
+                const direction = getDirection(segment);
+                const isFirstSegment = idx === 0;
+                const isLastSegment = idx === route.length - 1;
+
+                html += `
+                    <div class="segment">
+                        <div class="train-animation">🚂</div>
+                        <div class="line-header">
+                            <div class="line-color" style="background-color: ${segment.line.color}"></div>
+                            <div class="line-info">
+                                <div class="line-name">${segment.line.name}</div>
+                                <div class="line-direction">Richtung ${direction}</div>
+                            </div>
+                        </div>
+                        <div class="stations">
+                `;
+
+                segment.fullStations.forEach((station, stationIdx) => {
+                    const isStart = stationIdx === 0 && isFirstSegment;
+                    const isEnd = stationIdx === segment.fullStations.length - 1 && isLastSegment;
+                    const isTransfer = stationIdx === segment.fullStations.length - 1 && !isLastSegment;
+                    const isImportant = isStart || isEnd || isTransfer;
+
+                    let label = '';
+                    let classes = 'station';
+                    let dotClass = 'station-dot';
+
+                    if (isStart) {
+                        label = ' (Start)';
+                        classes += ' station-important';
+                    } else if (isEnd) {
+                        label = ' (Ziel)';
+                        classes += ' station-important';
+                    } else if (isTransfer) {
+                        label = ' → Umsteigen';
+                        classes += ' station-important';
+                    } else {
+                        classes += ' station-skip';
+                        dotClass = 'station-dot-skip';
+                    }
+
+                    html += `
+                        <div class="${classes}">
+                            <div class="${dotClass}"></div>
+                            <span>${station}${label}</span>
+                        </div>
+                    `;
+                });
+
+                html += '</div></div>';
+            });
+
+            const totalStations = route.reduce((sum, seg) => sum + seg.fullStations.length - 1, 0) + 1;
+            const transfers = route.length - 1;
+
+            html += `
+                <div class="route-summary">
+                    ✓ STATIONEN: ${totalStations} | UMSTIEGE: ${transfers}
+                </div>
+            `;
+
+            html += '</div>';
+            routeContainer.innerHTML = html;
+            routeContainer.classList.remove('hidden');
+        }
+
+        startSelect.addEventListener('change', calculateRoute);
+        zielSelect.addEventListener('change', calculateRoute);
+    </script>
+</body>
+</html>
