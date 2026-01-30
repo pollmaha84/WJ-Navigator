@@ -909,8 +909,8 @@
                             <img src="https://raw.githubusercontent.com/pollmaha84/WJ-Navigator/main/images/Serverbahn-Transport(1).png" 
                                  alt="Netzplan" 
                                  id="networkMap" 
-                                 crossorigin="anonymous" 
-                                 onerror="showMapError()">
+                                 loading="lazy"
+                                 crossorigin="anonymous">
                         </div>
                         <div class="map-overlay"></div>
                         <div class="zoom-info" id="zoomInfo">Zoom: 100%</div>
@@ -946,6 +946,7 @@
     </div>
 
     <script>
+        // ===== DATA DEFINITIONS =====
         const lines = [
             {
                 name: 'Ostia-Linie',
@@ -991,30 +992,57 @@
             }
         ];
 
-        // Zoom-Funktionalität
+        // ===== OPTIMIZATION: Create station-to-lines lookup map =====
+        const stationToLines = new Map();
+        lines.forEach(line => {
+            line.stations.forEach(station => {
+                if (!stationToLines.has(station)) {
+                    stationToLines.set(station, []);
+                }
+                stationToLines.get(station).push(line);
+            });
+        });
+
+        // ===== MAP ZOOM FUNCTIONALITY =====
         let scale = 1;
         let panning = false;
         let pointX = 0;
         let pointY = 0;
         let start = { x: 0, y: 0 };
+        let transformTimeout;
 
         const mapContainer = document.getElementById('mapContainer');
         const mapImg = document.getElementById('networkMap');
         const zoomInfo = document.getElementById('zoomInfo');
 
+        // OPTIMIZATION: Use requestAnimationFrame for smooth transforms
         function setTransform() {
-            mapImg.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
-            zoomInfo.textContent = `Zoom: ${Math.round(scale * 100)}%`;
-            zoomInfo.style.animation = 'none';
-            setTimeout(() => {
-                zoomInfo.style.animation = 'pulse 0.5s';
-            }, 10);
+            clearTimeout(transformTimeout);
+            requestAnimationFrame(() => {
+                mapImg.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
+                zoomInfo.textContent = `Zoom: ${Math.round(scale * 100)}%`;
+            });
         }
 
-        // Bild zentriert laden
-        mapImg.onload = function() {
+        // OPTIMIZATION: Proper image load/error handling
+        mapImg.addEventListener('load', function() {
             resetZoom();
-        };
+        });
+
+        mapImg.addEventListener('error', function() {
+            showMapError();
+        });
+
+        // Check if image already failed or add timeout as fallback
+        if (mapImg.complete && mapImg.naturalHeight === 0) {
+            showMapError();
+        } else {
+            setTimeout(() => {
+                if (!mapImg.complete || mapImg.naturalHeight === 0) {
+                    showMapError();
+                }
+            }, 3000);
+        }
 
         function showMapError() {
             const mapContent = document.getElementById('mapContent');
@@ -1037,13 +1065,6 @@
                 </div>
             `;
         }
-
-        // Prüfe nach 3 Sekunden ob Bild geladen wurde
-        setTimeout(() => {
-            if (!mapImg.complete || mapImg.naturalHeight === 0) {
-                showMapError();
-            }
-        }, 3000);
 
         function zoomIn() {
             scale = Math.min(scale * 1.2, 7.5);
@@ -1130,45 +1151,101 @@
             panning = false;
         });
 
-        // Stations initialisieren
+        // Initialize cursor
+        mapContainer.style.cursor = 'grab';
+
+        // ===== STATION INITIALIZATION =====
         const allStations = [...new Set(lines.flatMap(line => line.stations))].sort();
         const startSelect = document.getElementById('start');
         const zielSelect = document.getElementById('ziel');
 
-        allStations.forEach(station => {
-            const option1 = document.createElement('option');
-            option1.value = station;
-            option1.textContent = station;
-            startSelect.appendChild(option1);
-
-            const option2 = document.createElement('option');
-            option2.value = station;
-            option2.textContent = station;
-            zielSelect.appendChild(option2);
+        // OPTIMIZATION: Create options once and clone
+        const stationOptions = allStations.map(station => {
+            const option = document.createElement('option');
+            option.value = station;
+            option.textContent = station;
+            return option;
         });
 
-        // Lines Overview initialisieren
-        const linesOverview = document.getElementById('linesOverview');
-        lines.forEach(line => {
-            const lineCard = document.createElement('div');
-            lineCard.className = 'line-card';
-            lineCard.innerHTML = `
-                <div class="line-card-header">
-                    <div class="line-card-color" style="background-color: ${line.color}"></div>
-                    <div>
-                        <div class="line-card-name">${line.name}</div>
-                        <div style="color: #94a3b8; font-size: 0.8rem;">${line.colorName}</div>
-                    </div>
-                </div>
-                <div class="line-stations">
-                    ${line.stations.map(station => `
-                        <span class="station-pill">${station}</span>
-                    `).join('')}
-                </div>
-            `;
-            linesOverview.appendChild(lineCard);
+        stationOptions.forEach(opt => {
+            startSelect.appendChild(opt.cloneNode(true));
+            zielSelect.appendChild(opt.cloneNode(true));
         });
 
+        // ===== LINES OVERVIEW =====
+        // OPTIMIZATION: Lazy load lines overview and use event delegation
+        setTimeout(() => {
+            renderLinesOverview();
+        }, 100);
+
+        function renderLinesOverview() {
+            const linesOverview = document.getElementById('linesOverview');
+            const fragment = document.createDocumentFragment();
+            
+            lines.forEach(line => {
+                const lineCard = document.createElement('div');
+                lineCard.className = 'line-card';
+                
+                const lineCardHeader = document.createElement('div');
+                lineCardHeader.className = 'line-card-header';
+                
+                const lineCardColor = document.createElement('div');
+                lineCardColor.className = 'line-card-color';
+                lineCardColor.style.backgroundColor = line.color;
+                
+                const lineCardInfo = document.createElement('div');
+                const lineCardName = document.createElement('div');
+                lineCardName.className = 'line-card-name';
+                lineCardName.textContent = line.name;
+                
+                const lineCardColorName = document.createElement('div');
+                lineCardColorName.style.color = '#94a3b8';
+                lineCardColorName.style.fontSize = '0.8rem';
+                lineCardColorName.textContent = line.colorName;
+                
+                lineCardInfo.appendChild(lineCardName);
+                lineCardInfo.appendChild(lineCardColorName);
+                lineCardHeader.appendChild(lineCardColor);
+                lineCardHeader.appendChild(lineCardInfo);
+                
+                const lineStations = document.createElement('div');
+                lineStations.className = 'line-stations';
+                
+                line.stations.forEach(station => {
+                    const stationPill = document.createElement('span');
+                    stationPill.className = 'station-pill';
+                    stationPill.textContent = station;
+                    lineStations.appendChild(stationPill);
+                });
+                
+                lineCard.appendChild(lineCardHeader);
+                lineCard.appendChild(lineStations);
+                fragment.appendChild(lineCard);
+            });
+            
+            linesOverview.appendChild(fragment);
+        }
+
+        // OPTIMIZATION: Event delegation for station pills
+        document.addEventListener('DOMContentLoaded', () => {
+            const linesOverview = document.getElementById('linesOverview');
+            
+            linesOverview.addEventListener('mouseover', (e) => {
+                if (e.target.classList.contains('station-pill')) {
+                    e.target.style.background = 'rgba(99, 102, 241, 0.2)';
+                    e.target.style.color = '#6366f1';
+                }
+            });
+            
+            linesOverview.addEventListener('mouseout', (e) => {
+                if (e.target.classList.contains('station-pill')) {
+                    e.target.style.background = 'rgba(255, 255, 255, 0.05)';
+                    e.target.style.color = '';
+                }
+            });
+        });
+
+        // ===== UTILITY FUNCTIONS =====
         function swapStations() {
             const temp = startSelect.value;
             startSelect.value = zielSelect.value;
@@ -1184,7 +1261,7 @@
             document.getElementById('errorContainer').classList.add('hidden');
         }
 
-        // === NEUE BLOCKER-FUNKTIONEN ===
+        // ===== BLOCKER FUNCTIONS =====
         
         // Funktion zum Erkennen von doppelten Linien in einer Route
         function hasDuplicateLineSegments(route) {
@@ -1205,6 +1282,13 @@
             return false;
         }
 
+        // NEW BLOCKER: Check if route uses same line twice (even non-overlapping)
+        function usesSameLineTwice(route) {
+            const lineNames = route.map(segment => segment.line.name);
+            const uniqueLines = new Set(lineNames);
+            return lineNames.length !== uniqueLines.size;
+        }
+
         // Funktion zum Erkennen von exakt gleichen Routen
         function routesAreIdentical(route1, route2) {
             if (route1.length !== route2.length) return false;
@@ -1223,7 +1307,7 @@
             ).join('|');
         }
 
-        // === ERWEITERTER ROUTENBERECHNUNGSALGORITHMUS MIT BLOCKERN ===
+        // ===== ROUTE FINDING ALGORITHM =====
         
         function findRoutes(startStation, endStation, maxAlternatives = 3) {
             if (!startStation || !endStation || startStation === endStation) {
@@ -1232,12 +1316,17 @@
 
             const queue = [[startStation, [], null, 0]];
             const visited = new Map();
-            const allRoutes = [];
             const foundRoutes = [];
-            const routeFingerprints = new Set(); // Set für einzigartige Routen-Fingerabdrücke
+            const routeFingerprints = new Set();
             let minTransfers = Infinity;
+            const MAX_QUEUE_SIZE = 1000; // OPTIMIZATION: Prevent memory issues
 
             while (queue.length > 0 && foundRoutes.length < 10) {
+                // OPTIMIZATION: Limit queue growth
+                if (queue.length > MAX_QUEUE_SIZE) {
+                    queue.splice(MAX_QUEUE_SIZE);
+                }
+
                 const [current, path, lastLine, transfers] = queue.shift();
 
                 // Breche ab wenn zu viele Umstiege
@@ -1248,7 +1337,10 @@
                 if (best !== undefined && best <= transfers) continue;
                 visited.set(key, transfers);
 
-                for (const line of lines) {
+                // OPTIMIZATION: Use station-to-lines lookup
+                const relevantLines = stationToLines.get(current) || [];
+                
+                for (const line of relevantLines) {
                     const currentIndex = line.stations.indexOf(current);
                     if (currentIndex === -1) continue;
 
@@ -1264,7 +1356,7 @@
                         if (path.length > 0) {
                             const lastSegment = path[path.length - 1];
                             if (lastSegment.line.name === line.name && lastSegment.from === next) {
-                                continue; // Überspringe direkte Rückkehr
+                                continue;
                             }
                         }
                         
@@ -1312,7 +1404,7 @@
                                 }
                             }
                         } else {
-                            // Verhindere Zyklen: Station nicht wieder besuchen, wenn wir bereits auf derselben Linie waren
+                            // Verhindere Zyklen
                             let alreadyVisited = false;
                             for (const segment of path) {
                                 if (segment.line.name === line.name && 
@@ -1338,8 +1430,19 @@
                 return a.stations - b.stations;
             });
 
-            // Nehme nur die besten Routen (maxAlternatives + 1 für die beste Route)
-            return foundRoutes.slice(0, maxAlternatives + 1);
+            // Filter routes for alternatives: main route can be anything,
+            // but alternatives cannot use the same line twice
+            const mainRoute = foundRoutes[0];
+            const alternatives = [mainRoute]; // Always include the best route
+            
+            for (let i = 1; i < foundRoutes.length && alternatives.length <= maxAlternatives; i++) {
+                // NEW BLOCKER: For alternative routes, block if same line is used twice
+                if (!usesSameLineTwice(foundRoutes[i].route)) {
+                    alternatives.push(foundRoutes[i]);
+                }
+            }
+
+            return alternatives;
         }
 
         function getRouteStats(route) {
@@ -1408,7 +1511,7 @@
             }
         }
 
-        // Aktuelle Route speichern für Tabs
+        // ===== ROUTE DISPLAY =====
         let currentRoutes = [];
         let activeRouteIndex = 0;
 
@@ -1422,112 +1525,197 @@
             const tabsContainer = document.getElementById('routeTabs');
             if (!tabsContainer) return;
             
-            tabsContainer.innerHTML = '';
+            // OPTIMIZATION: Use DocumentFragment
+            const fragment = document.createDocumentFragment();
             
             currentRoutes.forEach((route, index) => {
                 const tab = document.createElement('div');
                 tab.className = `route-tab ${index === activeRouteIndex ? 'active' : ''}`;
-                tab.innerHTML = `
-                    <div>Route ${index + 1}</div>
-                    <div style="font-size: 0.7rem; color: #94a3b8;">
-                        ${route.transfers} Umst. • ${route.stations} Stat.
-                    </div>
-                `;
+                
+                const title = document.createElement('div');
+                title.textContent = `Route ${index + 1}`;
+                
+                const stats = document.createElement('div');
+                stats.style.fontSize = '0.7rem';
+                stats.style.color = '#94a3b8';
+                stats.textContent = `${route.transfers} Umst. • ${route.stations} Stat.`;
+                
+                tab.appendChild(title);
+                tab.appendChild(stats);
                 tab.onclick = () => showRoute(index);
-                tabsContainer.appendChild(tab);
+                
+                fragment.appendChild(tab);
             });
+            
+            tabsContainer.innerHTML = '';
+            tabsContainer.appendChild(fragment);
         }
 
+        // OPTIMIZATION: Use DocumentFragment instead of building HTML strings
         function renderRoute(routeData) {
             const routeContainer = document.getElementById('routeContainer');
             const route = routeData.route;
+            const routeLength = route.length; // Cache this value
             
-            let html = '<div class="route-box">';
+            const fragment = document.createDocumentFragment();
+            const routeBox = document.createElement('div');
+            routeBox.className = 'route-box';
             
             // Tabs für Routenauswahl
             if (currentRoutes.length > 1) {
-                html += '<div class="route-tabs" id="routeTabs"></div>';
+                const tabsDiv = document.createElement('div');
+                tabsDiv.className = 'route-tabs';
+                tabsDiv.id = 'routeTabs';
+                routeBox.appendChild(tabsDiv);
             }
             
-            html += '<h2 style="font-size: 2rem; margin-bottom: 30px; color: #6366f1; text-align: center;"><i class="fas fa-route"></i> DEINE ROUTE</h2>';
+            // Header
+            const header = document.createElement('h2');
+            header.style.fontSize = '2rem';
+            header.style.marginBottom = '30px';
+            header.style.color = '#6366f1';
+            header.style.textAlign = 'center';
+            header.innerHTML = '<i class="fas fa-route"></i> DEINE ROUTE';
+            routeBox.appendChild(header);
 
             route.forEach((segment, idx) => {
                 const direction = getDirection(segment);
                 const isFirstSegment = idx === 0;
-                const isLastSegment = idx === route.length - 1;
+                const isLastSegment = idx === routeLength - 1;
 
-                html += `
-                    <div class="segment" style="border-left-color: ${segment.line.color}">
-                        <div class="line-header">
-                            <div class="line-badge" style="background-color: ${segment.line.color}">
-                                <i class="fas fa-train"></i>
-                            </div>
-                            <div class="line-info">
-                                <div class="line-name">${segment.line.name}</div>
-                                <div class="line-direction">
-                                    <i class="fas fa-arrow-right"></i>
-                                    Richtung ${direction}
-                                </div>
-                            </div>
-                        </div>
-                        <div class="stations">
-                `;
+                const segmentDiv = document.createElement('div');
+                segmentDiv.className = 'segment';
+                segmentDiv.style.borderLeftColor = segment.line.color;
+                
+                // Line header
+                const lineHeader = document.createElement('div');
+                lineHeader.className = 'line-header';
+                
+                const lineBadge = document.createElement('div');
+                lineBadge.className = 'line-badge';
+                lineBadge.style.backgroundColor = segment.line.color;
+                lineBadge.innerHTML = '<i class="fas fa-train"></i>';
+                
+                const lineInfo = document.createElement('div');
+                lineInfo.className = 'line-info';
+                
+                const lineName = document.createElement('div');
+                lineName.className = 'line-name';
+                lineName.textContent = segment.line.name;
+                
+                const lineDirection = document.createElement('div');
+                lineDirection.className = 'line-direction';
+                lineDirection.innerHTML = `<i class="fas fa-arrow-right"></i> Richtung ${direction}`;
+                
+                lineInfo.appendChild(lineName);
+                lineInfo.appendChild(lineDirection);
+                lineHeader.appendChild(lineBadge);
+                lineHeader.appendChild(lineInfo);
+                segmentDiv.appendChild(lineHeader);
+                
+                // Stations
+                const stationsDiv = document.createElement('div');
+                stationsDiv.className = 'stations';
 
                 segment.fullStations.forEach((station, stationIdx) => {
                     const isStart = stationIdx === 0 && isFirstSegment;
                     const isEnd = stationIdx === segment.fullStations.length - 1 && isLastSegment;
                     const isTransfer = stationIdx === segment.fullStations.length - 1 && !isLastSegment;
 
-                    let label = '';
-                    let dotStyle = `background-color: ${segment.line.color}`;
-                    let textStyle = `color: ${segment.line.color}`;
+                    const stationDiv = document.createElement('div');
+                    stationDiv.className = 'station';
+                    
+                    const stationDot = document.createElement('div');
+                    stationDot.className = 'station-dot';
+                    stationDot.style.backgroundColor = segment.line.color;
+                    
+                    const stationName = document.createElement('div');
+                    stationName.className = 'station-name';
+                    stationName.textContent = station;
 
                     if (isStart) {
-                        label = '<span class="station-label" style="background: rgba(99, 102, 241, 0.2); color: #6366f1;">START</span>';
-                        textStyle = `color: ${segment.line.color}; font-weight: 700;`;
+                        const label = document.createElement('span');
+                        label.className = 'station-label';
+                        label.style.background = 'rgba(99, 102, 241, 0.2)';
+                        label.style.color = '#6366f1';
+                        label.textContent = 'START';
+                        stationName.style.color = segment.line.color;
+                        stationName.style.fontWeight = '700';
+                        stationDiv.appendChild(stationDot);
+                        stationDiv.appendChild(stationName);
+                        stationDiv.appendChild(label);
                     } else if (isEnd) {
-                        label = '<span class="station-label" style="background: rgba(16, 185, 129, 0.2); color: #10b981;">ZIEL</span>';
-                        textStyle = `color: #10b981; font-weight: 700;`;
+                        const label = document.createElement('span');
+                        label.className = 'station-label';
+                        label.style.background = 'rgba(16, 185, 129, 0.2)';
+                        label.style.color = '#10b981';
+                        label.textContent = 'ZIEL';
+                        stationName.style.color = '#10b981';
+                        stationName.style.fontWeight = '700';
+                        stationDiv.appendChild(stationDot);
+                        stationDiv.appendChild(stationName);
+                        stationDiv.appendChild(label);
                     } else if (isTransfer) {
-                        label = '<span class="station-label" style="background: rgba(99, 102, 241, 0.2); color: #6366f1;">UMSTEIGEN</span>';
-                        textStyle = `color: ${segment.line.color}; font-weight: 700;`;
+                        const label = document.createElement('span');
+                        label.className = 'station-label';
+                        label.style.background = 'rgba(99, 102, 241, 0.2)';
+                        label.style.color = '#6366f1';
+                        label.textContent = 'UMSTEIGEN';
+                        stationName.style.color = segment.line.color;
+                        stationName.style.fontWeight = '700';
+                        stationDiv.appendChild(stationDot);
+                        stationDiv.appendChild(stationName);
+                        stationDiv.appendChild(label);
                     } else {
-                        textStyle = `color: #94a3b8;`;
+                        stationName.style.color = '#94a3b8';
+                        stationDiv.appendChild(stationDot);
+                        stationDiv.appendChild(stationName);
                     }
 
-                    html += `
-                        <div class="station">
-                            <div class="station-dot" style="${dotStyle}"></div>
-                            <div class="station-name" style="${textStyle}">${station}</div>
-                            ${label}
-                        </div>
-                    `;
+                    stationsDiv.appendChild(stationDiv);
                 });
 
-                html += '</div></div>';
+                segmentDiv.appendChild(stationsDiv);
+                routeBox.appendChild(segmentDiv);
             });
 
-            html += `
-                <div class="route-summary">
-                    <div class="route-summary-content">
-                        <div class="summary-item">
-                            <div class="summary-value">${routeData.stations}</div>
-                            <div class="summary-label">Stationen</div>
-                        </div>
-                        <div class="summary-item">
-                            <div class="summary-value">${routeData.transfers}</div>
-                            <div class="summary-label">Umstiege</div>
-                        </div>
-                        <div class="summary-item">
-                            <div class="summary-value">${route.length}</div>
-                            <div class="summary-label">Linien</div>
-                        </div>
-                    </div>
-                </div>
+            // Summary
+            const summary = document.createElement('div');
+            summary.className = 'route-summary';
+            
+            const summaryContent = document.createElement('div');
+            summaryContent.className = 'route-summary-content';
+            
+            const stationsItem = document.createElement('div');
+            stationsItem.className = 'summary-item';
+            stationsItem.innerHTML = `
+                <div class="summary-value">${routeData.stations}</div>
+                <div class="summary-label">Stationen</div>
             `;
-
-            html += '</div>';
-            routeContainer.innerHTML = html;
+            
+            const transfersItem = document.createElement('div');
+            transfersItem.className = 'summary-item';
+            transfersItem.innerHTML = `
+                <div class="summary-value">${routeData.transfers}</div>
+                <div class="summary-label">Umstiege</div>
+            `;
+            
+            const linesItem = document.createElement('div');
+            linesItem.className = 'summary-item';
+            linesItem.innerHTML = `
+                <div class="summary-value">${routeLength}</div>
+                <div class="summary-label">Linien</div>
+            `;
+            
+            summaryContent.appendChild(stationsItem);
+            summaryContent.appendChild(transfersItem);
+            summaryContent.appendChild(linesItem);
+            summary.appendChild(summaryContent);
+            routeBox.appendChild(summary);
+            
+            fragment.appendChild(routeBox);
+            routeContainer.innerHTML = '';
+            routeContainer.appendChild(fragment);
             routeContainer.classList.remove('hidden');
             
             // Tabs aktualisieren
@@ -1542,45 +1730,74 @@
                 return;
             }
             
-            let html = '<div class="alternatives-container">';
-            html += '<div class="alternatives-header"><i class="fas fa-route"></i> ALTERNATIVE ROUTEN</div>';
-            html += '<div class="alternatives-grid">';
+            const fragment = document.createDocumentFragment();
+            const container = document.createElement('div');
+            container.className = 'alternatives-container';
+            
+            const header = document.createElement('div');
+            header.className = 'alternatives-header';
+            header.innerHTML = '<i class="fas fa-route"></i> ALTERNATIVE ROUTEN';
+            container.appendChild(header);
+            
+            const grid = document.createElement('div');
+            grid.className = 'alternatives-grid';
             
             // Überspringe die erste Route (ist bereits die Hauptroute)
             alternatives.slice(1).forEach((alt, index) => {
                 const uniqueLines = [...new Set(alt.route.map(seg => seg.line.name))];
                 
-                html += `
-                    <div class="alternative-route" onclick="showRoute(${index + 1})">
-                        <div class="alternative-header">
-                            <h3 style="color: #6366f1;">Route ${index + 2}</h3>
-                        </div>
-                        <div class="alternative-stats">
-                            <div class="stat">
-                                <div class="stat-value">${alt.stations}</div>
-                                <div class="stat-label">Stationen</div>
-                            </div>
-                            <div class="stat">
-                                <div class="stat-value">${alt.transfers}</div>
-                                <div class="stat-label">Umstiege</div>
-                            </div>
-                            <div class="stat">
-                                <div class="stat-value">${alt.route.length}</div>
-                                <div class="stat-label">Linien</div>
-                            </div>
-                        </div>
-                        <div class="alternative-lines" style="margin-top: 15px;">
-                            ${uniqueLines.map(lineName => {
-                                const line = lines.find(l => l.name === lineName);
-                                return `<span class="line-tag" style="background-color: ${line.color}">${lineName}</span>`;
-                            }).join('')}
-                        </div>
+                const altRoute = document.createElement('div');
+                altRoute.className = 'alternative-route';
+                altRoute.onclick = () => showRoute(index + 1);
+                
+                const altHeader = document.createElement('div');
+                altHeader.className = 'alternative-header';
+                const title = document.createElement('h3');
+                title.style.color = '#6366f1';
+                title.textContent = `Route ${index + 2}`;
+                altHeader.appendChild(title);
+                
+                const altStats = document.createElement('div');
+                altStats.className = 'alternative-stats';
+                altStats.innerHTML = `
+                    <div class="stat">
+                        <div class="stat-value">${alt.stations}</div>
+                        <div class="stat-label">Stationen</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">${alt.transfers}</div>
+                        <div class="stat-label">Umstiege</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">${alt.route.length}</div>
+                        <div class="stat-label">Linien</div>
                     </div>
                 `;
+                
+                const altLines = document.createElement('div');
+                altLines.className = 'alternative-lines';
+                altLines.style.marginTop = '15px';
+                
+                uniqueLines.forEach(lineName => {
+                    const line = lines.find(l => l.name === lineName);
+                    const tag = document.createElement('span');
+                    tag.className = 'line-tag';
+                    tag.style.backgroundColor = line.color;
+                    tag.textContent = lineName;
+                    altLines.appendChild(tag);
+                });
+                
+                altRoute.appendChild(altHeader);
+                altRoute.appendChild(altStats);
+                altRoute.appendChild(altLines);
+                grid.appendChild(altRoute);
             });
             
-            html += '</div></div>';
-            alternativesContainer.innerHTML = html;
+            container.appendChild(grid);
+            fragment.appendChild(container);
+            
+            alternativesContainer.innerHTML = '';
+            alternativesContainer.appendChild(fragment);
             alternativesContainer.classList.remove('hidden');
         }
 
@@ -1655,9 +1872,6 @@
         // Event Listener
         startSelect.addEventListener('change', calculateRoute);
         zielSelect.addEventListener('change', calculateRoute);
-        
-        // Initialisiere Cursor für Map
-        mapContainer.style.cursor = 'grab';
     </script>
 </body>
 </html>
