@@ -777,6 +777,83 @@
             background: rgba(99, 102, 241, 0.2);
             color: var(--primary);
         }
+
+        /* NEWS SECTION STYLES */
+        .news-section {
+            margin-top: 40px;
+            animation: fadeIn 1s ease-out 0.7s both;
+        }
+
+        .news-item {
+            background: rgba(15, 23, 42, 0.5);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border-left: 4px solid var(--primary);
+            transition: var(--transition);
+            position: relative;
+        }
+
+        .news-item:hover {
+            transform: translateX(10px);
+            background: rgba(15, 23, 42, 0.7);
+        }
+
+        .news-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .news-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--light);
+            margin-bottom: 5px;
+        }
+
+        .news-date {
+            font-size: 0.85rem;
+            color: var(--gray);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .news-content {
+            color: var(--gray);
+            line-height: 1.8;
+            font-size: 1rem;
+        }
+
+        .news-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-left: 10px;
+        }
+
+        .news-badge.important {
+            background: rgba(239, 68, 68, 0.2);
+            color: #fca5a5;
+        }
+
+        .news-badge.update {
+            background: rgba(99, 102, 241, 0.2);
+            color: #a5b4fc;
+        }
+
+        .news-badge.info {
+            background: rgba(16, 185, 129, 0.2);
+            color: #6ee7b7;
+        }
         
         /* Animations for loading */
         @keyframes loadingPulse {
@@ -817,6 +894,10 @@
             
             .alternatives-grid {
                 grid-template-columns: 1fr;
+            }
+
+            .news-header {
+                flex-direction: column;
             }
         }
         
@@ -943,6 +1024,65 @@
                 <div class="lines-grid" id="linesOverview"></div>
             </div>
         </div>
+
+        <!-- NEWS SECTION -->
+        <!-- TO ADD NEWS: Copy and paste a news-item div and edit the title, date, and content -->
+        <div class="glass-card news-section">
+            <div class="card-header">
+                <i class="fas fa-newspaper"></i>
+                <h2>NEUIGKEITEN</h2>
+            </div>
+            <div class="card-content">
+                
+                <!-- NEWS ITEM 1 - Example with "important" badge -->
+                <div class="news-item">
+                    <div class="news-header">
+                        <div>
+                            <div class="news-title">
+                                Ostia-Linie fertiggestellt!
+                                <span class="news-badge important">Wichtig</span>
+                            </div>
+                            <div class="news-date">
+                                <i class="fas fa-calendar-alt"></i>
+                                31. Januar 2026
+                            </div>
+                        </div>
+                    </div>
+                    <div class="news-content">
+                        Die neue Ostia-Linie ist jetzt vollständig in Betrieb! Gestern wurde die Station Nordbasis fertiggestellt!
+                    </div>
+                </div>
+
+           
+
+                <!-- TO ADD MORE NEWS: Copy from here... -->
+                <!--
+                <div class="news-item">
+                    <div class="news-header">
+                        <div>
+                            <div class="news-title">
+                                Dein Titel hier
+                                <span class="news-badge important">Wichtig</span>
+                                OR: <span class="news-badge update">Update</span>
+                                OR: <span class="news-badge info">Info</span>
+                                OR: remove the badge completely
+                            </div>
+                            <div class="news-date">
+                                <i class="fas fa-calendar-alt"></i>
+                                Dein Datum hier
+                            </div>
+                        </div>
+                    </div>
+                    <div class="news-content">
+                        Dein Inhalt hier. Du kannst mehrere Zeilen schreiben und so viel Text einfügen wie du möchtest.
+                    </div>
+                </div>
+                -->
+                <!-- ...to here, then paste it above this comment and edit the content -->
+
+            </div>
+        </div>
+
     </div>
 
     <script>
