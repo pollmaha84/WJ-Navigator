@@ -778,6 +778,39 @@
             color: var(--primary);
         }
 
+        /* STATION STATUS STYLES */
+        .station-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.75rem;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+
+        .station-status.construction {
+            background: rgba(245, 158, 11, 0.2);
+            color: #fbbf24;
+        }
+
+        .station-status.maintenance {
+            background: rgba(239, 68, 68, 0.2);
+            color: #fca5a5;
+        }
+
+        .station-status.closed {
+            background: rgba(100, 116, 139, 0.2);
+            color: #94a3b8;
+        }
+
+        /* Disabled option styling */
+        select option:disabled {
+            color: #64748b;
+            font-style: italic;
+        }
+
         /* NEWS SECTION STYLES */
         .news-section {
             margin-top: 40px;
@@ -1039,7 +1072,7 @@
                     <div class="news-header">
                         <div>
                             <div class="news-title">
-                                Ostia-Linie fertiggestellt!
+                                Neue Ostia-Linie eröffnet!
                                 <span class="news-badge important">Wichtig</span>
                             </div>
                             <div class="news-date">
@@ -1049,27 +1082,65 @@
                         </div>
                     </div>
                     <div class="news-content">
-                        Die neue Ostia-Linie ist jetzt vollständig in Betrieb! Gestern wurde die Station Nordbasis fertiggestellt!
+                        Die neue Ostia-Linie ist jetzt vollständig in Betrieb! Die Verbindung zwischen Nordbasis und Ostia ist nun schneller und bequemer. Nutzt die Route für eine optimale Reisezeit.
                     </div>
                 </div>
-    <div class="news-item">
+
+                <!-- NEWS ITEM 2 - Example with "update" badge -->
+                <div class="news-item">
                     <div class="news-header">
                         <div>
                             <div class="news-title">
-                               Bauarbeiten an den Bahnhöfen Steinfels und Sumpfbahnhof
-                                <span class="news-badge important">Wichtig</span>
+                                Wartungsarbeiten Froststation
+                                <span class="news-badge update">Update</span>
                             </div>
                             <div class="news-date">
                                 <i class="fas fa-calendar-alt"></i>
-                                31. Januar 2026
+                                28. Januar 2026
                             </div>
                         </div>
                     </div>
                     <div class="news-content">
-                       Die Bahnhöfe Steinfels und Sumpfbahnhof werden anlässlich Gleis-Erweiterungen grundlegend renoviert und können in naher Zukunft für einen kurzen Zeitraum nicht anfahrbar sein. 
+                        Am kommenden Wochenende finden planmäßige Wartungsarbeiten an der Froststation statt. Bitte nutzt alternative Routen via UN-Hauptquartier und Handelshafen.
                     </div>
                 </div>
-           
+
+                <!-- NEWS ITEM 3 - Example with "info" badge -->
+                <div class="news-item">
+                    <div class="news-header">
+                        <div>
+                            <div class="news-title">
+                                Neue Haltestelle Yanniks Kleinstadt
+                                <span class="news-badge info">Info</span>
+                            </div>
+                            <div class="news-date">
+                                <i class="fas fa-calendar-alt"></i>
+                                20. Januar 2026
+                            </div>
+                        </div>
+                    </div>
+                    <div class="news-content">
+                        Die Bezirkslinie wurde erweitert! Die neue Haltestelle "Yanniks Kleinstadt" ist ab sofort erreichbar. Entdeckt neue Möglichkeiten für eure Reisen im WJ-Netzwerk.
+                    </div>
+                </div>
+
+                <!-- NEWS ITEM 4 - Example without badge -->
+                <div class="news-item">
+                    <div class="news-header">
+                        <div>
+                            <div class="news-title">
+                                Willkommen beim WJ Navigator!
+                            </div>
+                            <div class="news-date">
+                                <i class="fas fa-calendar-alt"></i>
+                                15. Januar 2026
+                            </div>
+                        </div>
+                    </div>
+                    <div class="news-content">
+                        Herzlich willkommen zum neuen WJ Navigator! Plant eure Reisen durch unser Bahnnetzwerk schnell und einfach. Der Navigator findet automatisch die beste Route zwischen allen Stationen.
+                    </div>
+                </div>
 
                 <!-- TO ADD MORE NEWS: Copy from here... -->
                 <!--
@@ -1108,13 +1179,13 @@
                 name: 'Ostia-Linie',
                 color: '#DC2626',
                 colorName: 'Rot',
-                stations: ['Nordbasis', 'Spawn', 'Sumpfbahnhof', 'Eichenfels', 'Ostbrück', 'Königsberg', 'Ostia']
+                stations: ['Nordbasis', 'Spawn', 'Steinfels', 'Sumpfbahnhof', 'Eichenfels', 'Ostbrück', 'Königsberg', 'Ostia']
             },
             {
                 name: 'Frostlinie',
                 color: '#06B6D4',
                 colorName: 'Cyan',
-                stations: ['Nordbasis', 'Spawn', 'Olymp', 'Froststation', 'Landania']
+                stations: ['Nordbasis', 'Spawn', 'Steinfels', 'Olymp', 'Froststation', 'Landania']
             },
             {
                 name: 'Hafenlinie',
@@ -1147,6 +1218,13 @@
                 stations: ['Rom', 'Ostia', 'Königsberg', 'Yanniks Kleinstadt']
             }
         ];
+
+        // ===== STATION STATUS DEFINITIONS =====
+        // To mark a station as unavailable, add it here with a status
+        // Status options: 'construction', 'maintenance', 'closed'
+        const stationStatus = {
+            'Steinfels': 'maintenance',
+        };
 
         // ===== OPTIMIZATION: Create station-to-lines lookup map =====
         const stationToLines = new Map();
@@ -1315,11 +1393,30 @@
         const startSelect = document.getElementById('start');
         const zielSelect = document.getElementById('ziel');
 
-        // OPTIMIZATION: Create options once and clone
+        // Helper function to get status label
+        function getStatusLabel(status) {
+            const labels = {
+                'construction': '🚧 Im Bau',
+                'maintenance': '⚠️ Wartung',
+                'closed': '🚫 Geschlossen'
+            };
+            return labels[status] || '';
+        }
+
+        // OPTIMIZATION: Create options with status indicators
         const stationOptions = allStations.map(station => {
             const option = document.createElement('option');
             option.value = station;
-            option.textContent = station;
+            
+            const status = stationStatus[station];
+            if (status) {
+                option.textContent = `${station} ${getStatusLabel(status)}`;
+                option.disabled = true; // Disable unavailable stations
+                option.style.color = '#64748b';
+            } else {
+                option.textContent = station;
+            }
+            
             return option;
         });
 
@@ -1371,6 +1468,19 @@
                     const stationPill = document.createElement('span');
                     stationPill.className = 'station-pill';
                     stationPill.textContent = station;
+                    
+                    // Add status indicator if station has one
+                    const status = stationStatus[station];
+                    if (status) {
+                        const statusBadge = document.createElement('span');
+                        statusBadge.className = `station-status ${status}`;
+                        statusBadge.innerHTML = status === 'construction' ? '<i class="fas fa-hard-hat"></i>' :
+                                                status === 'maintenance' ? '<i class="fas fa-tools"></i>' :
+                                                '<i class="fas fa-ban"></i>';
+                        stationPill.appendChild(statusBadge);
+                        stationPill.style.opacity = '0.6';
+                    }
+                    
                     lineStations.appendChild(stationPill);
                 });
                 
@@ -1470,6 +1580,11 @@
                 return null;
             }
 
+            // Check if start or end station is unavailable
+            if (stationStatus[startStation] || stationStatus[endStation]) {
+                return null;
+            }
+
             const queue = [[startStation, [], null, 0]];
             const visited = new Map();
             const foundRoutes = [];
@@ -1506,6 +1621,10 @@
                         if (i < 0 || i >= line.stations.length) continue;
                         
                         const next = line.stations[i];
+                        
+                        // Skip stations that are unavailable (construction/maintenance/closed)
+                        if (stationStatus[next]) continue;
+                        
                         const newTransfers = lastLine && lastLine.name !== line.name ? transfers + 1 : transfers;
                         
                         // BLOCKER 1: Verhindere direkte Rückkehr zur vorherigen Station auf derselben Linie
@@ -1974,6 +2093,35 @@
                         <div class="error-icon"><i class="fas fa-exclamation-circle"></i></div>
                         <h2 style="margin-bottom: 15px; color: #fca5a5;">BITTE WÄHLE START UND ZIEL</h2>
                         <p style="color: #94a3b8;">Wähle eine Start- und Zielstation aus den Dropdown-Menüs.</p>
+                    </div>
+                `;
+                errorContainer.classList.remove('hidden');
+                return;
+            }
+
+            // Check if selected stations are unavailable
+            if (stationStatus[startStation]) {
+                const statusText = stationStatus[startStation] === 'construction' ? 'im Bau' :
+                                   stationStatus[startStation] === 'maintenance' ? 'in Wartung' : 'geschlossen';
+                errorContainer.innerHTML = `
+                    <div class="error-box">
+                        <div class="error-icon"><i class="fas fa-hard-hat"></i></div>
+                        <h2 style="margin-bottom: 15px; color: #fca5a5;">STATION NICHT VERFÜGBAR</h2>
+                        <p style="color: #94a3b8;">Die Startstation "${startStation}" ist derzeit ${statusText}. Bitte wähle eine andere Station.</p>
+                    </div>
+                `;
+                errorContainer.classList.remove('hidden');
+                return;
+            }
+
+            if (stationStatus[zielStation]) {
+                const statusText = stationStatus[zielStation] === 'construction' ? 'im Bau' :
+                                   stationStatus[zielStation] === 'maintenance' ? 'in Wartung' : 'geschlossen';
+                errorContainer.innerHTML = `
+                    <div class="error-box">
+                        <div class="error-icon"><i class="fas fa-hard-hat"></i></div>
+                        <h2 style="margin-bottom: 15px; color: #fca5a5;">STATION NICHT VERFÜGBAR</h2>
+                        <p style="color: #94a3b8;">Die Zielstation "${zielStation}" ist derzeit ${statusText}. Bitte wähle eine andere Station.</p>
                     </div>
                 `;
                 errorContainer.classList.remove('hidden');
